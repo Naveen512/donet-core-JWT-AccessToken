@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using JwtApiSample.Data.Context;
 using JwtApiSample.Data.Entities;
@@ -26,7 +27,7 @@ namespace JwtApiSample.Logic
             _myWorldDbContext = myWorldDbContext;
         }
 
-        public string GetAuthenticationToken(LoginModel loginModel)
+        public TokenModel GetAuthenticationToken(LoginModel loginModel)
         {
             User currentUser = _myWorldDbContext.User.Where(_ => _.Email.ToLower() == loginModel.Email.ToLower() &&
             _.Password == loginModel.Password).FirstOrDefault();
@@ -36,25 +37,94 @@ namespace JwtApiSample.Logic
                 var symmetricSecurityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_tokenSettings.Key));
                 var credentials = new SigningCredentials(symmetricSecurityKey, SecurityAlgorithms.HmacSha256);
 
-                var userCliams = new Claim[]{
+                var userCliams = new List<Claim>{
                     new Claim("email", currentUser.Email),
                     new Claim("phone", currentUser.PhoneNumber),
                 };
 
-                var jwtToken = new JwtSecurityToken(
+                return GetTokens(currentUser, userCliams);
+            }
+
+            return null;
+
+        }
+
+        private string GetRefreshToken()
+        {
+            var key = new Byte[32];
+            using (var refreshTokenGenerator = RandomNumberGenerator.Create())
+            {
+                refreshTokenGenerator.GetBytes(key);
+                return Convert.ToBase64String(key);
+            }
+        }
+
+        private TokenModel GetTokens(
+            User currentUser,
+            List<Claim> userClaims
+        )
+        {
+             var symmetricSecurityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_tokenSettings.Key));
+            var credentials = new SigningCredentials(symmetricSecurityKey, SecurityAlgorithms.HmacSha256);
+
+            var newJwtToken = new JwtSecurityToken(
                     issuer: _tokenSettings.Issuer,
                     audience: _tokenSettings.Audience,
                     expires: DateTime.Now.AddMinutes(20),
                     signingCredentials: credentials,
-                    claims:userCliams
-                );
+                    claims: userClaims
+            );
 
-                string token = new JwtSecurityTokenHandler().WriteToken(jwtToken);
-                return token;
+            string token = new JwtSecurityTokenHandler().WriteToken(newJwtToken);
+            string refreshToken = GetRefreshToken();
+
+            currentUser.RefreshToken = refreshToken;
+            _myWorldDbContext.SaveChanges();
+
+
+            return new TokenModel
+            {
+                Token = token,
+                RefreshToken = refreshToken
+            };
+        }
+
+        public TokenModel ActivateTokenUsingRefreshToke(TokenModel tokenModel)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var claimsPrincipal = tokenHandler.ValidateToken(tokenModel.Token,
+            new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = _tokenSettings.Issuer,
+                ValidateAudience = true,
+                ValidAudience = _tokenSettings.Audience,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_tokenSettings.Key)),
+                ValidateLifetime = true
+            }, out SecurityToken validatedToken);
+
+
+            var jwtToken = validatedToken as JwtSecurityToken;
+
+            if (jwtToken == null || !jwtToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256))
+            {
+                return null;
             }
 
-            return string.Empty;
+            var email = claimsPrincipal.Claims.Where(_ => _.Type == ClaimTypes.Email).Select(_ => _.Value).FirstOrDefault();
+            if (string.IsNullOrEmpty(email))
+            {
+                return null;
+            }
 
+            var currentUser = _myWorldDbContext.User.Where(_ => _.Email == email && _.RefreshToken == tokenModel.RefreshToken).FirstOrDefault();
+            if (currentUser == null)
+            {
+                return null;
+            }
+
+            return GetTokens(currentUser, jwtToken.Claims.ToList());
         }
     }
 }

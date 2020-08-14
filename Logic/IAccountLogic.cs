@@ -4,6 +4,7 @@ namespace JwtApiSample.Logic
 {
     public interface IAccountLogic
     {
-         string GetAuthenticationToken(LoginModel loginModel);
+         TokenModel GetAuthenticationToken(LoginModel loginModel);
+         TokenModel ActivateTokenUsingRefreshToke(TokenModel tokenModel);
     }
 }

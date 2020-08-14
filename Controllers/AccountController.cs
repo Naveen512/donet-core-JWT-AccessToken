@@ -19,13 +19,25 @@ namespace JwtApiSample.Controllers
         [Route("login-token")]
         public IActionResult GetLoginToken(LoginModel model)
         {
-            var token = _accountLogic.GetAuthenticationToken(model);
+            var tokenModel = _accountLogic.GetAuthenticationToken(model);
 
-            if (string.IsNullOrEmpty(token))
+            if (tokenModel == null)
             {
                 return NotFound();
             }
-            return Ok(new {token});
+            return Ok(tokenModel);
+        }
+
+        [HttpPost]
+        [Route("activate-token-by-refreshtoken")]
+        public IActionResult ActivateAccessTokenByRefresh(TokenModel refreshToken)
+        {
+            var resultTokenModel = _accountLogic.ActivateTokenUsingRefreshToke(refreshToken);
+            if (refreshToken == null)
+            {
+                return NotFound();
+            }
+            return Ok(resultTokenModel);
         }
     }
 }
