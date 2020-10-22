@@ -28,5 +28,14 @@ namespace JwtApiSample.Controllers
             }
             return Ok(userClaims);
         }
+
+        [HttpGet]
+        [Authorize]
+        [Route("todos")]
+        public IActionResult GetTodos()
+        {
+            var todos = new List<string>{"Watch Movie", "Shoping", "Party"};
+            return Ok(todos);
+        }
     }
 }

@@ -70,7 +70,7 @@ namespace JwtApiSample.Logic
             var newJwtToken = new JwtSecurityToken(
                     issuer: _tokenSettings.Issuer,
                     audience: _tokenSettings.Audience,
-                    expires: DateTime.Now.AddMinutes(20),
+                    expires: DateTime.UtcNow.AddMinutes(2),
                     signingCredentials: credentials,
                     claims: userClaims
             );

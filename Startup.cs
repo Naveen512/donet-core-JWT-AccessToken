@@ -46,12 +46,24 @@ namespace JwtApiSample
                     ValidateAudience = true,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration.GetSection("TokenSettings").GetValue<string>("Key"))),
                     ValidateIssuerSigningKey = true,
-                    ValidateLifetime = true
+                    ValidateLifetime = true,
+                    
                 };
             });
 
             services.AddDbContext<MyWorldDbContext>(options => {
                 options.UseSqlServer(Configuration.GetConnectionString("MyWorldDbConnection"));
+            });
+            services.AddCors(options =>
+            {
+                options.AddPolicy(name: "MyAllowSpecificOrigins",
+                                  builder =>
+                                  {
+                                      builder.AllowAnyOrigin();
+                                      builder.AllowAnyHeader();
+                                      builder.AllowAnyMethod();
+                                  });
+
             });
         }
 
@@ -66,6 +78,7 @@ namespace JwtApiSample
             app.UseHttpsRedirection();
 
             app.UseRouting();
+            app.UseCors("MyAllowSpecificOrigins");
             app.UseAuthentication();
             app.UseAuthorization();
 
